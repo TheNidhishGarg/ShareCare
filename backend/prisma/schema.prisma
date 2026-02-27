@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────
+
+enum UserMode {
+  receiver
+  donor
+}
+
+enum ItemCondition {
+  new_item
+  like_new
+  good
+  fair
+}
+
+enum ListingStatus {
+  active
+  reserved
+  completed
+  cancelled
+  expired
+}
+
+enum PickupMode {
+  self_pickup
+  doorstep
+  both
+}
+
+enum RequestStatus {
+  pending
+  accepted
+  otp_sent
+  completed
+  cancelled
+  rejected
+}
+
+enum DeliveryStatus {
+  awaiting_pickup
+  picked_up
+  in_transit
+  delivered
+  failed
+}
+
+enum TransactionType {
+  delivery_charge
+  sponsored_listing
+  advertisement
+}
+
+enum TransactionStatus {
+  pending
+  paid
+  refunded
+  failed
+}
+
+enum SponsoredEntityType {
+  ngo
+  listing
+  advertisement
+}
+
+enum OtpPurpose {
+  auth
+  pickup_verify
+  delivery_verify
+}
+
+enum AiTriggerType {
+  seasonal
+  spike
+  shortage
+}
+
+// ─── MODELS ──────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone         String?  @unique @db.VarChar(15)
+  email         String?  @unique @db.VarChar(255)
+  name          String?  @db.VarChar(255)
+  profilePhoto  String?  @map("profile_photo")
+  isVerified    Boolean  @default(false) @map("is_verified")
+  isActive      Boolean  @default(true) @map("is_active")
+  role          String   @default("user") @db.VarChar(20)
+  defaultMode   UserMode @default(receiver) @map("default_mode")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  addresses          UserAddress[]
+  listings           Listing[]
+  requestsAsReceiver Request[]       @relation("ReceiverRequests")
+  requestsAsDonor    Request[]       @relation("DonorRequests")
+  notifications      Notification[]
+  otpLogs            OtpLog[]
+
+  @@map("users")
+}
+
+model UserAddress {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  label        String?  @db.VarChar(100)
+  addressLine1 String   @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String?  @db.VarChar(100)
+  state        String?  @db.VarChar(100)
+  pincode      String?  @db.VarChar(10)
+  latitude     Decimal  @db.Decimal(10, 8)
+  longitude    Decimal  @db.Decimal(11, 8)
+  location     Unsupported("geography(Point,4326)")?
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@map("user_addresses")
+}
+
+model Category {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String  @unique @db.VarChar(100)
+  slug         String  @unique @db.VarChar(100)
+  iconUrl      String? @map("icon_url")
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  listings         Listing[]
+  demandSnapshots  AiDemandSnapshot[]
+  aiSuggestions    AiSuggestion[]
+
+  @@map("categories")
+}
+
+model Listing {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donorId        String        @map("donor_id") @db.Uuid
+  categoryId     String?       @map("category_id") @db.Uuid
+  title          String?       @db.VarChar(255)
+  description    String?
+  condition      ItemCondition @default(good)
+  imageUrls      String[]      @map("image_urls")
+  status         ListingStatus @default(active)
+  pickupMode     PickupMode    @default(both) @map("pickup_mode")
+  latitude       Decimal       @db.Decimal(10, 8)
+  longitude      Decimal       @db.Decimal(11, 8)
+  location       Unsupported("geography(Point,4326)")?
+  addressDisplay String?       @map("address_display")
+  viewCount      Int           @default(0) @map("view_count")
+  isSponsored    Boolean       @default(false) @map("is_sponsored")
+  sponsoredUntil DateTime?     @map("sponsored_until")
+  expiresAt      DateTime?     @map("expires_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  donor    User      @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id])
+  requests Request[]
+
+  @@map("listings")
+}
+
+model Request {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listingId              String        @map("listing_id") @db.Uuid
+  receiverId             String        @map("receiver_id") @db.Uuid
+  donorId                String        @map("donor_id") @db.Uuid
+  deliveryMode           PickupMode    @map("delivery_mode")
+  status                 RequestStatus @default(pending)
+  receiverOtp            String?       @map("receiver_otp") @db.VarChar(255)
+  otpExpiresAt           DateTime?     @map("otp_expires_at")
+  otpVerifiedAt          DateTime?     @map("otp_verified_at")
+  deliveryOtp            String?       @map("delivery_otp") @db.VarChar(255)
+  deliveryOtpVerifiedAt  DateTime?     @map("delivery_otp_verified_at")
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  listing    Listing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  receiver   User       @relation("ReceiverRequests", fields: [receiverId], references: [id])
+  donor      User       @relation("DonorRequests", fields: [donorId], references: [id])
+  deliveries Delivery[]
+  transactions Transaction[]
+
+  @@map("requests")
+}
+
+model Delivery {
+  id                   String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId            String         @map("request_id") @db.Uuid
+  receiverAddressId    String?        @map("receiver_address_id") @db.Uuid
+  deliveryAddress      Json?          @map("delivery_address")
+  logisticsPartner     String?        @map("logistics_partner") @db.VarChar(100)
+  logisticsOrderId     String?        @map("logistics_order_id") @db.VarChar(255)
+  qrCodeToken          String?        @unique @map("qr_code_token") @db.VarChar(255)
+  qrScannedAt          DateTime?      @map("qr_scanned_at")
+  pickupConfirmedAt    DateTime?      @map("pickup_confirmed_at")
+  dispatchedAt         DateTime?      @map("dispatched_at")
+  deliveredAt          DateTime?      @map("delivered_at")
+  deliveryChargePartner Decimal?      @map("delivery_charge_partner") @db.Decimal(10, 2)
+  deliveryChargeUser   Decimal?       @map("delivery_charge_user") @db.Decimal(10, 2)
+  platformMargin       Decimal?       @map("platform_margin") @db.Decimal(10, 2)
+  status               DeliveryStatus @default(awaiting_pickup)
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  request        Request      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  receiverAddress UserAddress? @relation(fields: [receiverAddressId], references: [id])
+  transactions   Transaction[]
+
+  @@map("deliveries")
+}
+
+model Transaction {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId      String?           @map("request_id") @db.Uuid
+  deliveryId     String?           @map("delivery_id") @db.Uuid
+  type           TransactionType
+  amount         Decimal           @db.Decimal(10, 2)
+  currency       String            @default("INR") @db.VarChar(5)
+  status         TransactionStatus @default(pending)
+  paymentGateway String?           @map("payment_gateway") @db.VarChar(100)
+  gatewayTxnId   String?           @map("gateway_txn_id") @db.VarChar(255)
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  request  Request?  @relation(fields: [requestId], references: [id])
+  delivery Delivery? @relation(fields: [deliveryId], references: [id])
+
+  @@map("transactions")
+}
+
+model AiDemandSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId   String   @map("category_id") @db.Uuid
+  regionKey    String   @map("region_key") @db.VarChar(100)
+  requestCount Int      @default(0) @map("request_count")
+  listingCount Int      @default(0) @map("listing_count")
+  demandScore  Decimal  @default(0) @map("demand_score") @db.Decimal(5, 2)
+  snapshotDate DateTime @map("snapshot_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@map("ai_demand_snapshots")
+}
+
+model AiSuggestion {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId  String        @map("category_id") @db.Uuid
+  regionKey   String        @map("region_key") @db.VarChar(100)
+  message     String?
+  triggerType AiTriggerType @map("trigger_type")
+  validFrom   DateTime?     @map("valid_from") @db.Date
+  validUntil  DateTime?     @map("valid_until") @db.Date
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@map("ai_suggestions")
+}
+
+model SponsoredSlot {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityType   SponsoredEntityType @map("entity_type")
+  entityId     String?             @map("entity_id") @db.Uuid
+  entityName   String?             @map("entity_name") @db.VarChar(255)
+  logoUrl      String?             @map("logo_url")
+  linkUrl      String?             @map("link_url")
+  displayOrder Int                 @default(0) @map("display_order")
+  regionKey    String?             @map("region_key") @db.VarChar(100)
+  startsAt     DateTime?           @map("starts_at")
+  endsAt       DateTime?           @map("ends_at")
+  amountPaid   Decimal?            @map("amount_paid") @db.Decimal(10, 2)
+  isActive     Boolean             @default(true) @map("is_active")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@map("sponsored_slots")
+}
+
+model Notification {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      String?  @db.VarChar(100)
+  title     String?  @db.VarChar(255)
+  body      String?
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model OtpLog {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?    @map("user_id") @db.Uuid
+  phone     String?    @db.VarChar(15)
+  otpHash   String     @map("otp_hash") @db.VarChar(255)
+  purpose   OtpPurpose
+  expiresAt DateTime   @map("expires_at")
+  isUsed    Boolean    @default(false) @map("is_used")
+  usedAt    DateTime?  @map("used_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("otp_logs")
+}
