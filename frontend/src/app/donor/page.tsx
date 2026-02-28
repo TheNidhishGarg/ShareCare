@@ -30,6 +30,20 @@ export default function DonorHomePage() {
         }
     }, []);
 
+    const handleDeleteListing = async (e: React.MouseEvent, id: string) => {
+        e.preventDefault(); // Prevent navigating to the link
+        if (!confirm("Are you sure you want to delete this listing?")) return;
+        try {
+            const { data } = await api.delete(`/listings/${id}`);
+            if (data.success) {
+                setListings(listings.filter(l => l.id !== id));
+            }
+        } catch (err) {
+            console.error("Failed to delete listing", err);
+            alert("Failed to delete listing.");
+        }
+    };
+
     const activeListings = listings.filter((l) => l.status === "active");
     const pendingRequests = requests.filter((r) => r.status === "pending");
 
@@ -58,7 +72,7 @@ export default function DonorHomePage() {
                         <div className="flex gap-3 overflow-x-auto pb-2">
                             {activeListings.slice(0, 5).map((listing) => (
                                 <Link key={listing.id} href={`/listings/${listing.id}`} className="flex-shrink-0 w-36">
-                                    <div className="glass-card overflow-hidden hover:border-indigo-500/30 transition-all">
+                                    <div className="glass-card overflow-hidden hover:border-indigo-500/30 transition-all relative group">
                                         <div className="aspect-square bg-gray-800">
                                             <img
                                                 src={listing.imageUrls?.[0] || `https://placehold.co/160x160/1f2937/6366f1?text=${listing.category?.name?.[0] || "?"}`}
@@ -66,6 +80,13 @@ export default function DonorHomePage() {
                                                 className="w-full h-full object-cover"
                                             />
                                         </div>
+                                        <button
+                                            onClick={(e) => handleDeleteListing(e, listing.id)}
+                                            className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-md text-xs opacity-0 shadow-lg group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 backdrop-blur-sm z-10"
+                                            title="Delete Listing"
+                                        >
+                                            🗑️
+                                        </button>
                                         <div className="p-2">
                                             <p className="text-xs font-medium text-white truncate">{listing.title}</p>
                                             <p className="text-[10px] text-gray-500">👁️ {listing.viewCount}</p>

@@ -5,7 +5,7 @@ const { AppError } = require('../middleware/errorHandler');
 
 class ListingService {
     // Get listings within radius using PostGIS
-    async getListingsFeed({ lat, lng, radius, category, cursor, limit }) {
+    async getListingsFeed({ lat, lng, radius, category, q, cursor, limit }) {
         const radiusMeters = Math.min(radius, 2000); // Hard cap at 2km
 
         // Build WHERE conditions
@@ -23,6 +23,19 @@ class ListingService {
         if (cursor) {
             cursorFilter = `AND l.created_at < $${paramIndex}`;
             params.push(new Date(cursor));
+            paramIndex++;
+        }
+
+        let searchFilter = '';
+        if (q) {
+            // Trim whitespace and escape special chars if needed, although parameterized queries handle quotes
+            const searchTerm = q.trim();
+            searchFilter = `AND (
+                l.title ILIKE $${paramIndex} 
+                OR l.description ILIKE $${paramIndex}
+                OR c.name ILIKE $${paramIndex}
+            )`;
+            params.push(`%${searchTerm}%`);
             paramIndex++;
         }
 
@@ -50,6 +63,7 @@ class ListingService {
         )
         ${categoryFilter}
         ${cursorFilter}
+        ${searchFilter}
       ORDER BY l.is_sponsored DESC, l.created_at DESC
       LIMIT $6
     `;
@@ -122,7 +136,7 @@ class ListingService {
 
         // Update PostGIS location via raw SQL
         await prisma.$executeRawUnsafe(
-            `UPDATE listings SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3`,
+            `UPDATE listings SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3::uuid`,
             data.longitude,
             data.latitude,
             listing.id
@@ -167,7 +181,7 @@ class ListingService {
         // Update PostGIS if location changed
         if (data.latitude && data.longitude) {
             await prisma.$executeRawUnsafe(
-                `UPDATE listings SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3`,
+                `UPDATE listings SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3::uuid`,
                 data.longitude,
                 data.latitude,
                 id

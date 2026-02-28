@@ -64,7 +64,7 @@ router.post('/me/addresses', authMiddleware, validate(createAddressSchema), asyn
 
         // Update PostGIS location
         await prisma.$executeRawUnsafe(
-            `UPDATE user_addresses SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3`,
+            `UPDATE user_addresses SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3::uuid`,
             data.longitude,
             data.latitude,
             address.id
@@ -98,7 +98,7 @@ router.put('/me/addresses/:id', authMiddleware, validate(updateAddressSchema), a
 
         if (req.validatedBody.latitude && req.validatedBody.longitude) {
             await prisma.$executeRawUnsafe(
-                `UPDATE user_addresses SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3`,
+                `UPDATE user_addresses SET location = ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography WHERE id = $3::uuid`,
                 req.validatedBody.longitude,
                 req.validatedBody.latitude,
                 address.id
