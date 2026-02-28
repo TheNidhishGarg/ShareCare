@@ -18,6 +18,20 @@ export default function MyListingsPage() {
         }).catch(() => setLoading(false));
     }, []);
 
+    const handleDeleteListing = async (e: React.MouseEvent, id: string) => {
+        e.preventDefault(); // Prevent navigating to the link
+        if (!confirm("Are you sure you want to delete this listing?")) return;
+        try {
+            const { data } = await api.delete(`/listings/${id}`);
+            if (data.success) {
+                setListings(listings.filter(l => l.id !== id));
+            }
+        } catch (err) {
+            console.error("Failed to delete listing", err);
+            alert("Failed to delete listing.");
+        }
+    };
+
     return (
         <AppShell>
             <div className="p-4">
@@ -48,7 +62,7 @@ export default function MyListingsPage() {
                 ) : (
                     <div className="space-y-3">
                         {listings.map((listing) => (
-                            <Link key={listing.id} href={`/listings/${listing.id}`} className="block">
+                            <Link key={listing.id} href={`/listings/${listing.id}`} className="block group relative">
                                 <div className="glass-card p-4 flex gap-3 hover:border-indigo-500/30 transition-all">
                                     <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-800 flex-shrink-0">
                                         <img
@@ -57,7 +71,7 @@ export default function MyListingsPage() {
                                             className="w-full h-full object-cover"
                                         />
                                     </div>
-                                    <div className="flex-1 min-w-0">
+                                    <div className="flex-1 min-w-0 pr-8">
                                         <h3 className="font-semibold text-white truncate">{listing.title}</h3>
                                         <p className="text-xs text-gray-400 mt-1">
                                             {listing.category?.name} · {formatTimeAgo(listing.createdAt)}
@@ -68,6 +82,14 @@ export default function MyListingsPage() {
                                         </div>
                                     </div>
                                 </div>
+
+                                <button
+                                    onClick={(e) => handleDeleteListing(e, listing.id)}
+                                    className="absolute top-4 right-4 p-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm opacity-0 shadow-lg group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 z-10 focus:opacity-100"
+                                    title="Delete Listing"
+                                >
+                                    🗑️
+                                </button>
                             </Link>
                         ))}
                     </div>

@@ -111,7 +111,7 @@ class RequestService {
             where: { id: requestId },
             data: {
                 status: 'accepted',
-                receiverOtp: otpHash,
+                receiverOtp: otp, // store in plaintext for easy retrieval in frontend
                 otpExpiresAt,
             },
             include: { listing: true },
@@ -220,11 +220,12 @@ class RequestService {
             throw new AppError('OTP not available for this request status', 400);
         }
 
-        // We don't return the OTP hash — the OTP was sent via SMS
+        // We now return the plaintext OTP for the frontend to display
         return {
             status: request.status,
             otpExpiresAt: request.otpExpiresAt,
             hasPendingOtp: !!request.receiverOtp && request.otpExpiresAt > new Date(),
+            otp: request.receiverOtp,
         };
     }
 
@@ -244,7 +245,7 @@ class RequestService {
             throw new AppError('OTP has expired', 400);
         }
 
-        const isValid = await bcrypt.compare(otp, request.receiverOtp);
+        const isValid = otp === request.receiverOtp || (await bcrypt.compare(otp, request.receiverOtp).catch(() => false));
         if (!isValid) throw new AppError('Invalid OTP', 400);
 
         // Complete the transaction

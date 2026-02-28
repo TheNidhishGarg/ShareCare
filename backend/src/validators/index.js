@@ -59,6 +59,7 @@ const listingsQuerySchema = z.object({
     lng: z.coerce.number().min(-180).max(180),
     radius: z.coerce.number().min(100).max(2000).default(2000),
     category: z.string().optional(),
+    q: z.string().optional(),
     cursor: z.string().optional(),
     limit: z.coerce.number().min(1).max(50).default(20),
 });

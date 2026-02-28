@@ -10,6 +10,7 @@ export default function MyRequestsPage() {
     const [requests, setRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showOtpModal, setShowOtpModal] = useState<string | null>(null);
+    const [actualOtp, setActualOtp] = useState<string | null>(null);
 
     useEffect(() => {
         api.get("/requests/mine").then(({ data }) => {
@@ -17,6 +18,33 @@ export default function MyRequestsPage() {
             setLoading(false);
         }).catch(() => setLoading(false));
     }, []);
+
+    const handleShowOtp = async (id: string) => {
+        setShowOtpModal(id);
+        setActualOtp(null);
+        try {
+            const { data } = await api.get(`/requests/${id}/otp`);
+            if (data.success) {
+                setActualOtp(data.data.otp);
+            }
+        } catch (err) {
+            console.error("Failed to fetch OTP", err);
+        }
+    };
+
+    const handleCancel = async (id: string) => {
+        if (!confirm("Are you sure you want to delete this request?")) return;
+        try {
+            const { data } = await api.put(`/requests/${id}/cancel`);
+            if (data.success) {
+                // Update state to remove or mark as cancelled
+                setRequests(requests.filter(r => r.id !== id));
+            }
+        } catch (err) {
+            console.error("Failed to cancel request", err);
+            alert("Failed to delete request.");
+        }
+    };
 
     return (
         <AppShell>
@@ -54,10 +82,18 @@ export default function MyRequestsPage() {
                                             <StatusBadge status={req.status} />
                                             {req.status === "accepted" && req.deliveryMode === "self_pickup" && (
                                                 <button
-                                                    onClick={() => setShowOtpModal(req.id)}
+                                                    onClick={() => handleShowOtp(req.id)}
                                                     className="text-xs text-indigo-400 font-medium hover:underline"
                                                 >
                                                     Show OTP
+                                                </button>
+                                            )}
+                                            {(req.status === "pending" || req.status === "accepted" || req.status === "otp_sent") && (
+                                                <button
+                                                    onClick={() => handleCancel(req.id)}
+                                                    className="text-xs text-red-400 font-medium hover:underline ml-auto"
+                                                >
+                                                    Delete Request
                                                 </button>
                                             )}
                                         </div>
@@ -69,7 +105,7 @@ export default function MyRequestsPage() {
                                     <div className="mt-3 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
                                         <p className="text-xs text-indigo-300 mb-2">Share this OTP with the donor at pickup:</p>
                                         <p className="text-3xl font-mono font-bold text-center text-white tracking-[0.3em]">
-                                            ••••••
+                                            {actualOtp ? actualOtp : <span className="animate-pulse">••••••</span>}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-2 text-center">OTP was sent to your phone via SMS</p>
                                         <button

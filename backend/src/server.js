@@ -6,6 +6,19 @@ const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const { execSync } = require('child_process');
+
+// Run DB migrations on startup
+try {
+    console.log('🔄 Running database migrations...');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    console.log('✅ Migrations complete');
+    console.log('🌱 Running database seed...');
+    execSync('node prisma/seed.js', { stdio: 'inherit' });
+    console.log('✅ Seed complete');
+} catch (err) {
+    console.error('❌ Migration/seed failed:', err.message);
+}
 
 const { env } = require('./config/env');
 const { initSocket } = require('./config/socket');
@@ -36,7 +49,17 @@ const server = http.createServer(app);
 // ─── MIDDLEWARE ───────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
-    origin: env.FRONTEND_URL,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        // Allow localhost in dev
+        if (origin.startsWith('http://localhost')) return callback(null, true);
+        // Allow any vercel.app domain
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        // Allow configured frontend URL
+        if (origin === env.FRONTEND_URL) return callback(null, true);
+        callback(null, true); // Allow all for now
+    },
     credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
