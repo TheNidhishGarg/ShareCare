@@ -6,6 +6,16 @@ const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const { execSync } = require('child_process');
+
+// Run DB migrations on startup
+try {
+    console.log('🔄 Running database migrations...');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    console.log('✅ Migrations complete');
+} catch (err) {
+    console.error('❌ Migration failed:', err.message);
+}
 
 const { env } = require('./config/env');
 const { initSocket } = require('./config/socket');
