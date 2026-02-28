@@ -36,7 +36,17 @@ const server = http.createServer(app);
 // ─── MIDDLEWARE ───────────────────────────────────────────
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
-    origin: env.FRONTEND_URL,
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        // Allow localhost in dev
+        if (origin.startsWith('http://localhost')) return callback(null, true);
+        // Allow any vercel.app domain
+        if (origin.endsWith('.vercel.app')) return callback(null, true);
+        // Allow configured frontend URL
+        if (origin === env.FRONTEND_URL) return callback(null, true);
+        callback(null, true); // Allow all for now
+    },
     credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
