@@ -13,8 +13,11 @@ try {
     console.log('🔄 Running database migrations...');
     execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     console.log('✅ Migrations complete');
+    console.log('🌱 Running database seed...');
+    execSync('node prisma/seed.js', { stdio: 'inherit' });
+    console.log('✅ Seed complete');
 } catch (err) {
-    console.error('❌ Migration failed:', err.message);
+    console.error('❌ Migration/seed failed:', err.message);
 }
 
 const { env } = require('./config/env');
